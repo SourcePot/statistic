@@ -46,70 +46,65 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
                 if (empty($callingElement)){
                     return TRUE;
                 } else {
-                return $this->processInvoices($callingElement,$testRunOnly=FALSE);
+                return $this->processStatistic($callingElement,$testRunOnly=FALSE);
                 }
                 break;
             case 'test':
                 if (empty($callingElement)){
                     return TRUE;
                 } else {
-                    return $this->processInvoices($callingElement,$testRunOnly=TRUE);
+                    return $this->processStatistic($callingElement,$testRunOnly=TRUE);
                 }
                 break;
             case 'widget':
                 if (empty($callingElement)){
                     return TRUE;
                 } else {
-                    return $this->getInvoicesWidget($callingElement);
+                    return $this->getStatisticWidget($callingElement);
                 }
                 break;
             case 'settings':
                 if (empty($callingElement)){
                     return TRUE;
                 } else {
-                    return $this->getInvoicesSettings($callingElement);
+                    return $this->getStatisticSettings($callingElement);
                 }
                 break;
             case 'info':
                 if (empty($callingElement)){
                     return TRUE;
                 } else {
-                    return $this->getInvoicesInfo($callingElement);
+                    return $this->getStatisticInfo($callingElement);
                 }
                 break;
         }
         return FALSE;
     }
 
-    private function getInvoicesWidget($callingElement){
+    private function getStatisticWidget($callingElement){
         $S=$this->oc['SourcePot\Datapool\Tools\MiscTools']->getSeparator();
         $html='';
-        // manual check
-        $settings=array('orderBy'=>'Name','isAsc'=>TRUE,'limit'=>2,'hideUpload'=>TRUE,'hideApprove'=>FALSE,'hideDecline'=>FALSE,'hideDelete'=>TRUE,'hideRemove'=>TRUE);
-        $settings['columns']=array(array('Column'=>'Content'.$S.'UNYCOM'.$S.'Full','Filter'=>''),array('Column'=>'Content'.$S.'Costs','Filter'=>''));
-        $wrapperSetting=array();
-        $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Invoice manual check','entryList',$callingElement['Content']['Selector'],$settings,$wrapperSetting);
         // invoice widget
-        $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Invoices','generic',$callingElement,array('method'=>'getInvoicesWidgetHtml','classWithNamespace'=>__CLASS__),array());
+        $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Statistic','generic',$callingElement,array('method'=>'getStatisticWidgetHtml','classWithNamespace'=>__CLASS__),array());
         return $html;
     }
 
-    private function getInvoicesInfo($callingElement){
+    private function getStatisticInfo($callingElement){
         $matrix=array();
         $matrix['']['value']='';
         $html=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'hideHeader'=>TRUE,'hideKeys'=>FALSE,'keep-element-content'=>TRUE,'caption'=>'Info'));
         return $html;
     }
        
-    public function getInvoicesWidgetHtml($arr){
+    public function getStatisticWidgetHtml($arr){
         if (!isset($arr['html'])){$arr['html']='';}
         // command processing
         $result=array();
         $formData=$this->oc['SourcePot\Datapool\Foundation\Element']->formProcessing(__CLASS__,__FUNCTION__);
         if (isset($formData['cmd']['run'])){
-            $result=$this->processInvoices($arr['selector'],FALSE);
+            $result=$this->processStatistic($arr['selector'],FALSE);
         } else if (isset($formData['cmd']['test'])){
-            $result=$this->processInvoices($arr['selector'],TRUE);
+            $result=$this->processStatistic($arr['selector'],TRUE);
         }
         // build html
         $btnArr=array('tag'=>'input','type'=>'submit','callingClass'=>__CLASS__,'callingFunction'=>__FUNCTION__);
@@ -117,10 +112,10 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         $btnArr['value']='Check';
         $btnArr['key']=array('test');
         $matrix['Commands']['Test']=$btnArr;
-        $btnArr['value']='Process invoices';
+        $btnArr['value']='Process statistic';
         $btnArr['key']=array('run');
         $matrix['Commands']['Run']=$btnArr;
-        $arr['html'].=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'style'=>'clear:left;','hideHeader'=>TRUE,'hideKeys'=>TRUE,'keep-element-content'=>TRUE,'caption'=>'Invoices'));
+        $arr['html'].=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'style'=>'clear:left;','hideHeader'=>TRUE,'hideKeys'=>TRUE,'keep-element-content'=>TRUE,'caption'=>'Statistic'));
         foreach($result as $caption=>$matrix){
             $arr['html'].=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'hideHeader'=>FALSE,'hideKeys'=>FALSE,'keep-element-content'=>TRUE,'caption'=>$caption));
         }
@@ -128,15 +123,15 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         return $arr;
     }
     
-    private function getInvoicesSettings($callingElement){
+    private function getStatisticSettings($callingElement){
         $html='';
         if ($this->oc['SourcePot\Datapool\Foundation\Access']->isContentAdmin()){
-            $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Invoices entries settings','generic',$callingElement,array('method'=>'getInvoicesSettingsHtml','classWithNamespace'=>__CLASS__),array());
+            $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Statistic entries settings','generic',$callingElement,array('method'=>'getStatisticSettingsHtml','classWithNamespace'=>__CLASS__),array());
         }
         return $html;
     }
     
-    public function getInvoicesSettingsHtml($arr){
+    public function getStatisticSettingsHtml($arr){
         if (!isset($arr['html'])){$arr['html']='';}
         $arr['html'].=$this->processingParams($arr['selector']);
         $arr['html'].=$this->processingRules($arr['selector']);
@@ -165,7 +160,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         // get HTML
         $arr['canvasCallingClass']=$callingElement['Folder'];
         $arr['contentStructure']=$contentStructure;
-        $arr['caption']='Invoices control: select forwarding targets and probabilities';
+        $arr['caption']='Statistic control: select forwarding targets and probabilities';
         $arr['noBtns']=TRUE;
         $row=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->entry2row($arr,FALSE,TRUE);
         if (empty($arr['selector']['Content'])){$row['trStyle']=array('background-color'=>'#a00');}
@@ -184,12 +179,12 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         $arr=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2arr(__CLASS__,__FUNCTION__,$callingElement,TRUE);
         $arr['canvasCallingClass']=$callingElement['Folder'];
         $arr['contentStructure']=$contentStructure;
-        $arr['caption']='Invoices filter rules: defines entry filter for manual checking';
+        $arr['caption']='Statistic filter rules: defines entry filter for manual checking';
         $html=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->entryListEditor($arr);
         return $html;
     }
 
-    private function processInvoices($callingElement,$testRun=FALSE){
+    private function processStatistic($callingElement,$testRun=FALSE){
         $base=array('processingparams'=>array(),'processingrules'=>array());
         $base=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2settings(__CLASS__,__FUNCTION__,$callingElement,$base);
         // add to base canvas elements->array('EntryId'=>'Name')
@@ -199,17 +194,10 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         }
         // loop through source entries and parse these entries
         $this->oc['SourcePot\Datapool\Foundation\Database']->resetStatistic();
-        $result=array('Invoices'=>array());
+        $result=array('Statistic'=>array());
         // loop through entries
         $params=current($base['processingparams']);
         foreach($this->oc['SourcePot\Datapool\Foundation\Database']->entryIterator($callingElement['Content']['Selector'],TRUE,'Read') as $sourceEntry){
-            $result['Invoices'][$sourceEntry['Name']]=array('Document missing'=>FALSE,'Property missing'=>FALSE,'Ready for<br/>manual check'=>FALSE,'Rule match'=>FALSE,'User action'=>'none','Forward to'=>'');
-            if (empty($sourceEntry['Params']['File'])){
-                $result['Invoices'][$sourceEntry['Name']]['Document missing']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->bool2element(TRUE);
-                continue;
-            } else {
-                $result['Invoices'][$sourceEntry['Name']]['Document missing']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->bool2element(FALSE);
-            }
             $result=$this->processEntry($base,$sourceEntry,$result,$testRun);
         }
         $result['Statistics']=$this->oc['SourcePot\Datapool\Foundation\Database']->statistic2matrix();
@@ -220,70 +208,13 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
     
     private function processEntry($base,$sourceEntry,$result,$testRun){
         $params=current($base['processingparams']);
-        // check for added manual action
-        $targetEntryId=FALSE;
-        if (isset($sourceEntry['Params']['User'][$_SESSION['currentUser']['EntryId']]['action'])){
-            if ($sourceEntry['Params']['User'][$_SESSION['currentUser']['EntryId']]['action']==='approve'){
-                // invoice approved
-                $targetEntryId=$params['Content']['Target success'];
-            } else if ($sourceEntry['Params']['User'][$_SESSION['currentUser']['EntryId']]['action']==='decline'){
-                // declined invoice
-                $targetEntryId=$params['Content']['Target failure'];
-            } else {
-                $this->oc['logger']->log('notice','User action "{action}" did not match "approve" or "decline"',array('action'=>$sourceEntry['Params']['User'][$_SESSION['currentUser']['EntryId']]['action']));
-            }
-            if ($targetEntryId){
-                $result['Invoices'][$sourceEntry['Name']]['User action']='<b>'.$sourceEntry['Params']['User'][$_SESSION['currentUser']['EntryId']]['action'].'</b>';
-                $targetEntry=$this->oc['SourcePot\Datapool\Foundation\Database']->moveEntryOverwriteTarget($sourceEntry,$base['entryTemplates'][$targetEntryId],TRUE,$testRun);
-                $result['Invoices'][$sourceEntry['Name']]['Forward to']=$base[$targetEntryId];
-            }
-        }
-        // check if rules were already applied
-        $rulesWereAppliedAlready=$this->oc['SourcePot\Datapool\Tools\MiscTools']->wasTouchedByClass($sourceEntry,__CLASS__,$testRun);
-        $result['Invoices'][$sourceEntry['Name']]['Ready for<br/>manual check']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->bool2element($rulesWereAppliedAlready);
         // check rule match
         $ruleMatch=NULL;
         $flatSourceEntry=$this->oc['SourcePot\Datapool\Tools\MiscTools']->arr2flat($sourceEntry);
         foreach($base['processingrules'] as $ruleIndex=>$rule){
             $rule['Content']['ruleIndex']=$this->oc['SourcePot\Datapool\Foundation\Database']->getOrderedListIndexFromEntryId($ruleIndex);
-            if (!isset($flatSourceEntry[$rule['Content']['Property']])){
-                $result['Invoices'][$sourceEntry['Name']]['Property missing']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->bool2element(TRUE);
-                continue;
-            } else {
-                $result['Invoices'][$sourceEntry['Name']]['Property missing']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->bool2element(FALSE);
-            }
-            $property=$this->oc['SourcePot\Datapool\Tools\MiscTools']->convert($flatSourceEntry[$rule['Content']['Property']],$rule['Content']['Property data type']);
-            $conditionMet=$this->oc['SourcePot\Datapool\Tools\MiscTools']->isTrue($property,$rule['Content']['Compare value'],$rule['Content']['Condition']);
-            if ($ruleMatch===NULL){
-                $ruleMatch=$conditionMet;
-            } else if ($rule['Content']['...']==='&&'){
-                $ruleMatch=$ruleMatch && $conditionMet;
-            } else if ($rule['Content']['...']==='||'){
-                $ruleMatch=$ruleMatch || $conditionMet;
-            } else {
-                $this->oc['logger']->log('notice','Rule "{ruleIndex}" is invalid, key "... = {...}" is undefined',$rule['Content']);
-            }
         }
-        $result['Invoices'][$sourceEntry['Name']]['Rule match']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->bool2element($ruleMatch);
-        if ($ruleMatch){
-            if (mt_rand(0,99)<$params['Content']['Rules match<br/>sample probability'] || $rulesWereAppliedAlready){
-                // manual check
-            } else {
-                // forward to success target
-                $targetEntryId=$params['Content']['Target success'];
-                $targetEntry=$this->oc['SourcePot\Datapool\Foundation\Database']->moveEntryOverwriteTarget($sourceEntry,$base['entryTemplates'][$targetEntryId],TRUE,$testRun);
-                $result['Invoices'][$sourceEntry['Name']]['Forward to']=$base[$targetEntryId];
-            }
-        } else {
-            if (mt_rand(0,99)<$params['Content']['Rules no match<br/>sample probability'] || $rulesWereAppliedAlready){
-                // manual check
-            } else {
-                // forward to success target
-                $targetEntryId=$params['Content']['Target success'];
-                $targetEntry=$this->oc['SourcePot\Datapool\Foundation\Database']->moveEntryOverwriteTarget($sourceEntry,$base['entryTemplates'][$targetEntryId],TRUE,$testRun);
-                $result['Invoices'][$sourceEntry['Name']]['Forward to']=$base[$targetEntryId];
-            }
-        }
+        
         return $result;
     }
 }
