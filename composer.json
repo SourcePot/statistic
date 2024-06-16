@@ -1,0 +1,17 @@
+{
+	"name":"sourcepot/statistic",
+	"type":"library",
+	"description":"Datapool processor creating statistics (Processor interface)",
+	"keywords":["invoices"],
+	"homepage":"https://datapool.info",
+	"license":"AGPL-3.0-or-later",
+	"authors":[{"name":"Carsten Wallenhauer","email":"admin@datapool.info"}],
+	"require":{
+		"php":">=8.0"
+	},
+	"autoload":{
+		"psr-4":{
+			"SourcePot\\statistic\\":"src/"
+		}
+	}
+}
