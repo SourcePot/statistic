@@ -19,7 +19,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
                                  'Write'=>array('type'=>'SMALLINT UNSIGNED','value'=>'ALL_CONTENTADMIN_R','Description'=>'This is the entry specific Read access setting. It is a bit-array.'),
                                  );
 
-    private const MAX_PROC_TIME=60000000000;     // max. processing tim in nanoseconds
+    private const MAX_PROC_TIME=55000000000;     // max. processing tim in nanoseconds
     private const CACHE_NAME='statisticCache';
     private const STEPS=array(0=>'Added costs to families',1=>'Added meta data to families',2=>'Created statistics');
     private const STEPS_METHOD=array(0=>'addCosts',1=>'addFamilyMeta',2=>'getStatistics');
@@ -71,9 +71,20 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
     }
 
     private function getStatisticInfo($callingElement){
+        $cacheMeta=$this->checkCache();
         $matrix=array();
-        $matrix['']['value']='';
-        $html=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'hideHeader'=>TRUE,'hideKeys'=>FALSE,'keep-element-content'=>TRUE,'caption'=>'Info'));
+        foreach(self::STEPS as $stepIndex=>$step){
+            if ($cacheMeta['stepDone'][$stepIndex]){
+                $value=100;
+            } else if ($cacheMeta['unprocessedCount'][$stepIndex]==0 && $cacheMeta['processedCount'][$stepIndex]==0){
+                $value=100;
+            } else {
+                $value=round(100*$cacheMeta['processedCount'][$stepIndex]/($cacheMeta['unprocessedCount'][$stepIndex]+$cacheMeta['processedCount'][$stepIndex]),2);
+            }
+            $matrix[$step]['Progress']=$this->oc['SourcePot\Datapool\Foundation\Element']->element(array('tag'=>'meter','min'=>0,'max'=>100,'value'=>$value,'title'=>$value.'%','element-content'=>''));
+            $matrix[$step]['[%]]']=$this->oc['SourcePot\Datapool\Foundation\Element']->element(array('tag'=>'p','element-content'=>$value.'%'));
+        }
+        $html=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'hideHeader'=>TRUE,'hideKeys'=>FALSE,'keep-element-content'=>TRUE,'caption'=>'Processing steps'));
         return $html;
     }
        
@@ -104,7 +115,6 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         $btnArr['hasCover']=TRUE;
         $btnArr['key']=array('reset');
         $matrix['Commands']['Reset']=$btnArr;
-        $matrix['Commands']['Info']='Case cache = '.$familyRowCount;
         $arr['html'].=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'style'=>'clear:left;','hideHeader'=>TRUE,'hideKeys'=>TRUE,'keep-element-content'=>TRUE,'caption'=>'Statistic'));
         foreach($result as $caption=>$matrix){
             $arr['html'].=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'hideHeader'=>FALSE,'hideKeys'=>FALSE,'keep-element-content'=>TRUE,'caption'=>$caption));
@@ -214,7 +224,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
     {
         $contentStructure=array('If not granted'=>array('method'=>'select','excontainer'=>TRUE,'value'=>'skip','options'=>array('skip'=>'Skip','include'=>'Include')),
                                 );
-        // get selctor
+        // get selector
         $arr=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2arr(__CLASS__,__FUNCTION__,$callingElement,TRUE);
         $arr['selector']=$this->oc['SourcePot\Datapool\Foundation\Database']->entryByIdCreateIfMissing($arr['selector'],TRUE);
         // form processing
