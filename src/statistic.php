@@ -19,10 +19,9 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
                                  'Write'=>array('type'=>'SMALLINT UNSIGNED','value'=>'ALL_CONTENTADMIN_R','Description'=>'This is the entry specific Read access setting. It is a bit-array.'),
                                  );
 
-    private const MAX_PROC_TIME=55000000000;     // max. processing tim in nanoseconds
-    private const CACHE_NAME='statisticCache';
+    private const MAX_PROC_TIME=10000000000;     // max. processing tim in nanoseconds
     private const STEPS=array(0=>'Added costs to families',1=>'Added meta data to families',2=>'Created statistics');
-    private const STEPS_METHOD=array(0=>'addCosts',1=>'addFamilyMeta',2=>'getStatistics');
+    private const STEPS_METHOD=array(0=>'addCosts',1=>'addFamilyMeta',2=>'createStatistics');
 
     private $skipCasesOptions=array('skipUngranted'=>'Skip if not granted');
     
@@ -71,21 +70,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
     }
 
     private function getStatisticInfo($callingElement){
-        $cacheMeta=$this->checkCache();
-        $matrix=array();
-        foreach(self::STEPS as $stepIndex=>$step){
-            if ($cacheMeta['stepDone'][$stepIndex]){
-                $value=100;
-            } else if ($cacheMeta['unprocessedCount'][$stepIndex]==0 && $cacheMeta['processedCount'][$stepIndex]==0){
-                $value=100;
-            } else {
-                $value=round(100*$cacheMeta['processedCount'][$stepIndex]/($cacheMeta['unprocessedCount'][$stepIndex]+$cacheMeta['processedCount'][$stepIndex]),2);
-            }
-            $matrix[$step]['Progress']=$this->oc['SourcePot\Datapool\Foundation\Element']->element(array('tag'=>'meter','min'=>0,'max'=>100,'value'=>$value,'title'=>$value.'%','element-content'=>''));
-            $matrix[$step]['[%]]']=$this->oc['SourcePot\Datapool\Foundation\Element']->element(array('tag'=>'p','element-content'=>$value.'%'));
-        }
-        $html=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'hideHeader'=>TRUE,'hideKeys'=>FALSE,'keep-element-content'=>TRUE,'caption'=>'Processing steps'));
-        return $html;
+        return '';
     }
        
     public function getStatisticWidgetHtml($arr){
@@ -98,14 +83,11 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         } else if (isset($formData['cmd']['test'])){
             $result=$this->processStatistic($arr['selector'],TRUE);
         } else if (isset($formData['cmd']['reset'])){
-            $statisticFamilySelector=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->dataTmpSelector(__CLASS__,self::CACHE_NAME,FALSE);
             $this->oc['SourcePot\Datapool\Foundation\Database']->resetStatistic();
-            $this->oc['SourcePot\Datapool\Foundation\Database']->deleteEntries($statisticFamilySelector,TRUE);
+            $this->oc['SourcePot\Datapool\Foundation\Queue']->clearQueue(__CLASS__);
             $result['Statistics']=$this->oc['SourcePot\Datapool\Foundation\Database']->statistic2matrix();
         }
         // build html
-        $familySelector=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->dataTmpSelector(__CLASS__,self::CACHE_NAME,FALSE);
-        $familyRowCount=$this->oc['SourcePot\Datapool\Foundation\Database']->getRowCount($familySelector,TRUE);
         $btnArr=array('tag'=>'input','type'=>'submit','callingClass'=>__CLASS__,'callingFunction'=>__FUNCTION__);
         $matrix=array();
         $btnArr['value']='Run';
@@ -119,6 +101,8 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         foreach($result as $caption=>$matrix){
             $arr['html'].=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'hideHeader'=>FALSE,'hideKeys'=>FALSE,'keep-element-content'=>TRUE,'caption'=>$caption));
         }
+        $cacheMeta=$this->oc['SourcePot\Datapool\Foundation\Queue']->getQueueMeta(__CLASS__,self::STEPS);
+        $arr['html'].=$cacheMeta['Meter'];
         $arr['wrapperSettings']=array('style'=>array('width'=>'fit-content'));
         return $arr;
     }
@@ -135,7 +119,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         if (!isset($arr['html'])){$arr['html']='';}
         $arr['html'].=$this->processingParamsCosts($arr['selector']);
         $arr['html'].=$this->processingParamsCases($arr['selector']);
-        $arr['html'].=$this->processingParamsFamilies($arr['selector']);
+        $arr['html'].=$this->processingParamsGeneric($arr['selector']);
         return $arr;
     }
 
@@ -181,13 +165,13 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
     
     private function processingParamsCases($callingElement):string
     {
-        $contentStructure=array('Case records'=>array('method'=>'canvasElementSelect','excontainer'=>FALSE),
-                                'Case reference '=>array('method'=>'keySelect','value'=>'Name','standardColumsOnly'=>TRUE,'showSample'=>TRUE,'addSourceValueColumn'=>FALSE,'excontainer'=>TRUE,'keep-element-content'=>FALSE),
+        $contentStructure=array('Case reference '=>array('method'=>'keySelect','value'=>'Name','standardColumsOnly'=>TRUE,'showSample'=>TRUE,'addSourceValueColumn'=>FALSE,'excontainer'=>TRUE,'keep-element-content'=>FALSE),
                                 'Prio date'=>array('method'=>'keySelect','excontainer'=>TRUE,'value'=>'Content|[]|Prioritätsdatum|[]|System short','showSample'=>TRUE,'addSourceValueColumn'=>FALSE,'keep-element-content'=>FALSE),
                                 'Base date'=>array('method'=>'keySelect','excontainer'=>TRUE,'value'=>'Content|[]|Zuerkannter Anmeldetag|[]|System short','showSample'=>TRUE,'addSourceValueColumn'=>FALSE,'keep-element-content'=>FALSE),
                                 'Grant date'=>array('method'=>'keySelect','excontainer'=>TRUE,'value'=>'Content|[]|Erteilungsdatum|[]|System short','showSample'=>TRUE,'addSourceValueColumn'=>FALSE,'keep-element-content'=>FALSE),
                                 'Category cases'=>array('method'=>'keySelect','excontainer'=>TRUE,'value'=>'Content|[]|Codepfad all|[]|FhI','showSample'=>TRUE,'addSourceValueColumn'=>FALSE,'keep-element-content'=>FALSE),
-                                'Bins'=>array('method'=>'select','excontainer'=>TRUE,'value'=>'yearly','options'=>array('years'=>'Years','months'=>'Months'),'keep-element-content'=>FALSE),
+                                'Bins'=>array('method'=>'select','excontainer'=>TRUE,'value'=>'years','options'=>array('years'=>'Years','months'=>'Months'),'keep-element-content'=>FALSE),
+                                'Target'=>array('method'=>'canvasElementSelect','excontainer'=>FALSE),
                                 );
         // get selctor
         $arr=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2arr(__CLASS__,__FUNCTION__,$callingElement,TRUE);
@@ -200,15 +184,11 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
             $arr['selector']=$this->oc['SourcePot\Datapool\Foundation\Database']->updateEntry($arr['selector'],TRUE);
         }
         // current params
-        $base=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2settings(__CLASS__,__FUNCTION__,$callingElement,array());
-        $params=current($base['processingparamscases']);
-        if (isset($params['Content']['Case records'])){
-            $contentStructure['Case reference ']+=$base['entryTemplates'][$params['Content']['Case records']];
-            $contentStructure['Prio date']+=$base['entryTemplates'][$params['Content']['Case records']];
-            $contentStructure['Base date']+=$base['entryTemplates'][$params['Content']['Case records']];
-            $contentStructure['Grant date']+=$base['entryTemplates'][$params['Content']['Case records']];
-            $contentStructure['Category cases']+=$base['entryTemplates'][$params['Content']['Case records']];
-        }
+        $contentStructure['Case reference ']+=$callingElement['Content']['Selector'];
+        $contentStructure['Prio date']+=$callingElement['Content']['Selector'];
+        $contentStructure['Base date']+=$callingElement['Content']['Selector'];
+        $contentStructure['Grant date']+=$callingElement['Content']['Selector'];
+        $contentStructure['Category cases']+=$callingElement['Content']['Selector'];
         // get HTML
         $arr['canvasCallingClass']=$callingElement['Folder'];
         $arr['contentStructure']=$contentStructure;
@@ -220,9 +200,15 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         return $this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'style'=>'clear:left;','hideHeader'=>FALSE,'hideKeys'=>TRUE,'keep-element-content'=>TRUE,'caption'=>$arr['caption']));
     }
     
-    private function processingParamsFamilies($callingElement):string
+    private function processingParamsGeneric($callingElement):string
     {
-        $contentStructure=array('If not granted'=>array('method'=>'select','excontainer'=>TRUE,'value'=>'skip','options'=>array('skip'=>'Skip','include'=>'Include')),
+        $contentStructure=array('If not granted'=>array('method'=>'select','excontainer'=>TRUE,'value'=>'skip','options'=>array('skip'=>'Skip','include'=>'Include'),'excontainer'=>FALSE),
+                                '||'=>array('method'=>'element','tag'=>'p','element-content'=>'||','excontainer'=>FALSE),
+                                'Category cases needle'=>array('method'=>'element','tag'=>'input','type'=>'text','value'=>'2440','excontainer'=>FALSE),
+                                'Cases needle alias'=>array('method'=>'element','tag'=>'input','type'=>'text','value'=>'IIS1','excontainer'=>FALSE),
+                                '|'=>array('method'=>'element','tag'=>'p','element-content'=>'|','excontainer'=>FALSE),
+                                'Category costs needle'=>array('method'=>'element','tag'=>'input','type'=>'text','value'=>'choppe','excontainer'=>FALSE),
+                                'Costs needle alias'=>array('method'=>'element','tag'=>'input','type'=>'text','value'=>'Schoppe','excontainer'=>FALSE),
                                 );
         // get selector
         $arr=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2arr(__CLASS__,__FUNCTION__,$callingElement,TRUE);
@@ -237,66 +223,36 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         // get HTML
         $arr['canvasCallingClass']=$callingElement['Folder'];
         $arr['contentStructure']=$contentStructure;
-        $arr['caption']='Family control';
+        $arr['caption']='Generic control';
         $arr['noBtns']=TRUE;
         $row=$this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->entry2row($arr,FALSE,TRUE);
         if (empty($arr['selector']['Content'])){$row['trStyle']=array('background-color'=>'#a00');}
         $matrix=array('Parameter'=>$row);
         return $this->oc['SourcePot\Datapool\Tools\HTMLbuilder']->table(array('matrix'=>$matrix,'style'=>'clear:left;','hideHeader'=>FALSE,'hideKeys'=>TRUE,'keep-element-content'=>TRUE,'caption'=>$arr['caption']));
     }
-
-    private function checkCache():array
-    {
-        // init meta cache
-        $cacheMeta=array('rowCount'=>0,'cacheEmpty'=>TRUE);
-        $cacheMeta['selector']=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->dataTmpSelector(__CLASS__,self::CACHE_NAME,FALSE);
-        foreach(self::STEPS as $stepIndex=>$step){
-            $cacheMeta['stepDone'][$stepIndex]=TRUE;
-            $cacheMeta['unprocessedCount'][$stepIndex]=0;
-            $cacheMeta['processedCount'][$stepIndex]=0;
-        }
-        // gather meta data
-        foreach($this->oc['SourcePot\Datapool\Foundation\Database']->entryIterator($cacheMeta['selector'],TRUE,'Read') as $cacheEntry){
-            $cacheMeta['rowCount']++;
-            $cacheMeta['cacheEmpty']=FALSE;
-            foreach(self::STEPS as $stepIndex=>$step){
-                if (empty($cacheEntry['Content']['processedStep'][$stepIndex])){
-                    $cacheMeta['stepDone'][$stepIndex]=FALSE;
-                    $cacheMeta['unprocessedCount'][$stepIndex]++;
-                } else {
-                    $cacheMeta['processedCount'][$stepIndex]++;
-                }
-            }
-        }
-        return $cacheMeta;
-    }
-
+    
     private function processStatistic($callingElement,$testRun=FALSE):array
     {
-        $base=array('processingparamscosts'=>array(),'processingparamscases'=>array(),'processingparamsfamilies'=>array());
+        $base=array('processingparamscosts'=>array(),'processingparamscases'=>array(),'processingparamsgeneric'=>array());
         $base=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2settings(__CLASS__,__FUNCTION__,$callingElement,$base);
-        $base['targetEntry']=$callingElement['Content']['Selector'];
         $paramsCosts=current($base['processingparamscosts'])['Content'];
         $paramsCases=current($base['processingparamscases'])['Content'];
         $base['costsSelector']=$base['entryTemplates'][$paramsCosts['Cost records']];
-        $base['casesSelector']=$base['entryTemplates'][$paramsCases['Case records']];
-        $base['canvasElement']=$callingElement['Content'];
+        $base['targetSelector']=$base['entryTemplates'][$paramsCases['Target']];
+        $base['canvasElementEntryId']=$callingElement['EntryId'];
         //
-        $this->oc['SourcePot\Datapool\Foundation\Database']->resetStatistic();
         $result=array('Statistic'=>array('Step'=>array('value'=>''),
                                         'Entries'=>array('value'=>0),
-                                        'Entries processed'=>array('value'=>0),
-                                        'Entries skipped'=>array('value'=>0),
                                         'Errors'=>array('value'=>''),
                                         )
-                     );        
-        $cacheMeta=$this->checkCache();
-        //$this->oc['SourcePot\Datapool\Tools\MiscTools']->arr2file($cacheMeta);
-        if ($cacheMeta['cacheEmpty']){
+                     );
+        $cacheMeta=$this->oc['SourcePot\Datapool\Foundation\Queue']->getQueueMeta(__CLASS__,self::STEPS);
+        $base['stepIndex']=$cacheMeta['Current step'];
+        if ($cacheMeta['Empty']){
             // create cache -> gather families from entries
             $family=$this->finalizeFamily($base);
             $result['Statistic']['Step']['value']='0: Create families from patent cases';
-            foreach($this->oc['SourcePot\Datapool\Foundation\Database']->entryIterator($base['casesSelector'],TRUE,'Read',$paramsCases['Case reference '],TRUE) as $caseEntry){
+            foreach($this->oc['SourcePot\Datapool\Foundation\Database']->entryIterator($base['callingElement']['Selector'],TRUE,'Read',$paramsCases['Case reference '],TRUE) as $caseEntry){
                 // check if entry is valid
                 $flatCaseEntry=$this->oc['SourcePot\Datapool\Tools\MiscTools']->arr2flat($caseEntry);
                 $unycomArr=$this->oc['SourcePot\Datapool\Tools\MiscTools']->convert2unycom($flatCaseEntry[$paramsCases['Case reference ']]);
@@ -315,35 +271,27 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
             }
             $family=$this->finalizeFamily($base,$family);
             $result['Statistic']['Families']['value']=$family['familyCount'];
+            $result['Statistics']=$this->oc['SourcePot\Datapool\Foundation\Database']->statistic2matrix();
+        } else if ($cacheMeta['All done']){
+            $result['Statistic']['Step']['value']='Finalizing';
+            $result=$this->finalizeStatistics($base);
+            $this->oc['SourcePot\Datapool\Foundation\Queue']->clearQueue(__CLASS__);
+            $result['Statistics']=$this->oc['SourcePot\Datapool\Foundation\Database']->statistic2matrix();
         } else {
-            // process cache entries step-by-step
-            foreach(self::STEPS as $stepIndex=>$step){
-                if ($cacheMeta['stepDone'][$stepIndex]){continue;}
-                $result['Statistic']['Step']['value']=($stepIndex+1).': '.$step;
-                $method=self::STEPS_METHOD[$stepIndex];
-                foreach($this->oc['SourcePot\Datapool\Foundation\Database']->entryIterator($cacheMeta['selector'],TRUE,'Read','Name',TRUE) as $cacheEntry){
-                    // process entry
-                    $cacheEntry['stepIndex']=$stepIndex;
-                    if (empty($cacheEntry['Content']['processedStep'][$stepIndex])){
-                        // needs to be processed
-                        $result=$this->$method($base,$cacheEntry,$result,$testRun);
-                        $result['Statistic']['Entries processed']['value']++;
-                    } else {
-                        // was processed already
-                        $result['Statistic']['Entries skipped']['value']++;
-                    }
-                    $result['Statistic']['Entries']['value']++;
-                    // check processing time
-                    if (hrtime(TRUE)-$base['Script start timestamp']>self::MAX_PROC_TIME){
-                        $count=$cacheMeta['unprocessedCount'][$stepIndex]+$cacheMeta['processedCount'][$stepIndex];
-                        $result['Statistic']['Step']['value'].=' <b>('.$cacheMeta['processedCount'][$stepIndex].'+'.$result['Statistic']['Entries processed']['value'].' of '.$count.')</b>';
-                        break;
-                    }
-                } // end of loop through families
-                break;
-            }   // end of loop through steps
+            $stepIndex=$base['stepIndex'];
+            $result['Statistic']['Step']['value']=($stepIndex+1).': '.self::STEPS[$stepIndex];
+            $method=self::STEPS_METHOD[$stepIndex];
+            foreach($this->oc['SourcePot\Datapool\Foundation\Queue']->dequeueEntry(__CLASS__,$stepIndex) as $cacheEntry){
+                if (empty($cacheEntry)){continue;}
+                $cacheEntry=$this->$method($base,$cacheEntry);
+                if ($cacheEntry){
+                    $this->oc['SourcePot\Datapool\Foundation\Queue']->enqueueEntry(__CLASS__,$stepIndex+1,$cacheEntry);
+                }
+                // check processing time
+                $result['Statistic']['Entries']['value']++;
+                if (hrtime(TRUE)-$base['Script start timestamp']>self::MAX_PROC_TIME){break;}
+            }
         }
-        $result['Statistics']=$this->oc['SourcePot\Datapool\Foundation\Database']->statistic2matrix();
         $result['Statistics']['Script time']=array('Value'=>date('Y-m-d H:i:s'));
         $result['Statistics']['Time consumption [msec]']=array('Value'=>round((hrtime(TRUE)-$base['Script start timestamp'])/1000000));
         return $result;
@@ -389,26 +337,23 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
 
     private function finalizeFamily(array $base,array $family=array('familyCount'=>1,'Family'=>'')):array
     {
-        $paramsFamilies=current($base['processingparamsfamilies'])['Content'];
-        //$this->oc['SourcePot\Datapool\Tools\MiscTools']->arr2file($paramsFamilies);
-        $skipFamily=($paramsFamilies['If not granted']=='skip' && empty($family['Info']['isGranted']));
+        $paramsGeneric=current($base['processingparamsgeneric'])['Content'];
+        $skipFamily=($paramsGeneric['If not granted']=='skip' && empty($family['Info']['isGranted']));
         if (empty($family['Family']) || $skipFamily){
             // skip family
         } else {
             // store family
-            $entry=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->dataTmpSelector(__CLASS__,self::CACHE_NAME,$family['Family']);
-            $entry['Content']=$family;
-            $entry['Content']['Source']=$entry['Source'];
-            $entry['Content']['EntryId']=$entry['EntryId'];
-            $this->oc['SourcePot\Datapool\Foundation\Database']->updateEntry($entry,TRUE);
+            $entry=array('Read'=>'ALL_MEMBER_R','Write'=>'ALL_CONTENTADMIN_R','Content'=>$family);
+            $this->oc['SourcePot\Datapool\Foundation\Queue']->enqueueEntry(__CLASS__,0,$entry);
             $family['familyCount']++;
         }
         $family=array('familyCount'=>$family['familyCount'],'Family'=>'');
         return $family;
     }
 
-    private function addCosts($base,$cacheEntry,$result,$testRun):array
+    private function addCosts($base,$cacheEntry):array
     {
+        $cacheEntry['Params'][__FUNCTION__]=$cacheEntry['Params'][__FUNCTION__]??array();
         $paramsCosts=current($base['processingparamscosts'])['Content'];
         $paramsCases=current($base['processingparamscases'])['Content'];
         // add costs
@@ -416,14 +361,15 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
             $flatCostEntry=$this->oc['SourcePot\Datapool\Tools\MiscTools']->arr2flat($costEntry);
             $unycomArr=$this->oc['SourcePot\Datapool\Tools\MiscTools']->convert2unycom($flatCostEntry[$paramsCosts['Case reference']]);
             if (!$unycomArr['isValid']){
-                $result['Statistic']['Errors']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addArrValuesKeywise($result['Statistic']['Errors'],array('value'=>'Invalid case ref '.$flatCostEntry[$paramsCosts['Case reference']]));
+                $cacheEntry['Params'][__FUNCTION__]=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addArrValuesKeywise($cacheEntry['Params'][__FUNCTION__],array('Errors'=>'Invalid case ref '.$flatCostEntry[$paramsCosts['Case reference']]));
+                continue;
+            } else if ($unycomArr['Type']=='M'){
                 continue;
             }
             $case=$unycomArr['Reference'];
             $cacheEntry['Content']['Info']['sum']+=$flatCostEntry[$paramsCosts['Cost record amount']];
             if (isset($cacheEntry['Content'][$case])){
                 // cost record matches family case
-                if (isset($result['Statistic']['Cost record added']['value'])){$result['Statistic']['Cost record added']['value']++;} else {$result['Statistic']['Cost record added']['value']=1;}
                 if ($cacheEntry['Content'][$case]['isValidation']){
                     $timeDiffArr=$this->dateDiff($cacheEntry['Content'][$case]['grantDate'],$flatCostEntry[$paramsCosts['Cost record date']]);
                 } else {
@@ -446,29 +392,19 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
                         $cacheEntry['Content'][$case]['categoryCosts'][$flatCostEntry[$paramsCosts['Category costs']]]=$flatCostEntry[$paramsCosts['Cost record amount']];
                     }
                 } else {
-                    $result['Statistic']['Errors']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addArrValuesKeywise($result['Statistic']['Errors'],array('value'=>'Invalid bin'.$bin.' '.$case));
+                    $cacheEntry['Params'][__FUNCTION__]=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addArrValuesKeywise($cacheEntry['Params'][__FUNCTION__],array('Errors'=>'Invalid bin'.$bin.' '.$case));
                 }
             } else {
                 // cost record does not match any family case
-                if (isset($result['Statistic']['Cost record skipped']['value'])){
-                    $result['Statistic']['Cost record skipped']['value']++;
-                } else {
-                    $result['Statistic']['Cost record skipped']['value']=1;
-                }
-                $result['Statistic']['Errors']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addArrValuesKeywise($result['Statistic']['Errors'],array('value'=>'Invalid case cost record '.$case));
+                $cacheEntry['Params'][__FUNCTION__]=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addArrValuesKeywise($cacheEntry['Params'][__FUNCTION__],array('Errors'=>'Invalid case cost record '.$case));
             }
-            $result['Statistic']['Family']['value']=$cacheEntry['Content']['Family'];
         }
-        // update cache entry
-        $cacheEntry['Content']['processedStep'][$cacheEntry['stepIndex']]=TRUE;
-        $this->oc['SourcePot\Datapool\Foundation\Database']->updateEntry($cacheEntry,TRUE);
-        return $result;
+        $cacheEntry['Date']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->getDateTime();
+        return $cacheEntry;
     }
 
-    private function addFamilyMeta($base,$cacheEntry,$result,$testRun):array
+    private function addFamilyMeta($base,$cacheEntry):array
     {
-        $paramsCosts=current($base['processingparamscosts'])['Content'];
-        $paramsCases=current($base['processingparamscases'])['Content'];
         // add family case meta
         $family=$cacheEntry['Content'];
         foreach($family as $case=>$caseArr){
@@ -498,90 +434,93 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
             $cacheEntry['Content'][$case]['name'].='_'.$this->oc['SourcePot\Datapool\Tools\MiscTools']->getHash($cacheEntry['Content'][$case]['attorney'],TRUE);
             $cacheEntry['Content'][$case]['name']=trim(str_replace(' ','-',$cacheEntry['Content'][$case]['name']),'_');
         }
-        // update cache entry
-        $cacheEntry['Content']['processedStep'][$cacheEntry['stepIndex']]=TRUE;
-        $this->oc['SourcePot\Datapool\Foundation\Database']->updateEntry($cacheEntry,TRUE);
-        return $result;
+        $cacheEntry['Date']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->getDateTime();
+        return $cacheEntry;
     }
 
-    private function getStatistics($base,$cacheEntry,$result,$testRun):array
+    private function createStatistics($base,$cacheEntry)
     {
-        $paramsCosts=current($base['processingparamscosts'])['Content'];
-        $paramsCases=current($base['processingparamscases'])['Content'];
-        // add cases to statistics session 
+        $paramsGeneric=current($base['processingparamsgeneric'])['Content'];
+        // add cases to statistics session
         foreach($cacheEntry['Content'] as $case=>$caseArr){
+            // skip if not a patent case
             if ($case=='Info' || $case=='familyCount' || $case=='Family' || $case=='Family' || $case=='Source' || $case=='EntryId' || $case=='processedStep'){continue;}
-            // get grant statistic
-            $name=$caseArr['name'];
-            $age=$caseArr['age years'];
-            if ($caseArr['sumTillGrant']>0){
-                if (isset($_SESSION[__CLASS__]['grants'][$name][$age])){
-                    $_SESSION[__CLASS__]['grants'][$name][$age]['Samples']++;
-                    $_SESSION[__CLASS__]['grants'][$name][$age]['Sum costs']+=$caseArr['sumTillGrant'];
-                    if ($_SESSION[__CLASS__]['grants'][$name][$age]['Min costs']>$caseArr['sumTillGrant']){$_SESSION[__CLASS__]['grants'][$name][$age]['Min costs']=$caseArr['sumTillGrant'];}
-                    if ($_SESSION[__CLASS__]['grants'][$name][$age]['Max costs']<$caseArr['sumTillGrant']){$_SESSION[__CLASS__]['grants'][$name][$age]['Max costs']=$caseArr['sumTillGrant'];}
-                } else {
-                    $_SESSION[__CLASS__]['grants'][$name][$age]=array('Age'=>$age,'Avg. costs'=>FALSE,'Min costs'=>$caseArr['sumTillGrant'],'Max costs'=>$caseArr['sumTillGrant'],'Sum costs'=>$caseArr['sumTillGrant'],'Samples'=>1,'Type'=>$caseArr['type'],'Attorney'=>$caseArr['attorney']);
-                }
+            // skip if not granted or costs missing
+            if ($caseArr['year granted']>30 || $caseArr['sumTillGrant']==0){continue;}
+            // create cost categories
+            $categoryCosts=implode(' | ',array_keys($cacheEntry['Content']['Info']['categoryCosts']));
+            if (empty($paramsGeneric['Costs needle alias'])){$costsAlias=$paramsGeneric['Category costs needle'];} else {$costsAlias=$paramsGeneric['Costs needle alias'];}
+            if (empty($paramsGeneric['Category costs needle'])){
+                $categoryCostsHash=substr($categoryCosts,0,20);
+            } else if (stripos($categoryCosts,$paramsGeneric['Category costs needle'])!==FALSE){
+                $categoryCostsHash='is_'.$costsAlias;
+            } else {
+                $categoryCostsHash='not_'.$costsAlias;
             }
-            // get yearly statistic
-            $name=$caseArr['age years'].'_'.$caseArr['name'];
-            foreach($caseArr['bins'] as $year=>$yearSum){
-                if (!isset($_SESSION[__CLASS__]['years'][$name][$year])){
-                    $_SESSION[__CLASS__]['years'][$name][$year]=array('Avg. costs'=>FALSE,'Min costs'=>FALSE,'Max costs'=>FALSE,'Sum costs'=>0,'Samples'=>0,'Granted'=>0,'Cases'=>0,'Type'=>$caseArr['type'],'Age'=>$caseArr['age years'],'Attorney'=>$caseArr['attorney']);
-                }
-                $_SESSION[__CLASS__]['years'][$name][$year]['Cases']++;
-                if ($year<=$caseArr['year granted']){
-                    if ($_SESSION[__CLASS__]['years'][$name][$year]['Min costs']===FALSE || $_SESSION[__CLASS__]['years'][$name][$year]['Min costs']>$yearSum){$_SESSION[__CLASS__]['years'][$name][$year]['Min costs']=$yearSum;}
-                    if ($_SESSION[__CLASS__]['years'][$name][$year]['Max costs']===FALSE || $_SESSION[__CLASS__]['years'][$name][$year]['Max costs']<$yearSum){$_SESSION[__CLASS__]['years'][$name][$year]['Max costs']=$yearSum;}
-                    $_SESSION[__CLASS__]['years'][$name][$year]['Sum costs']+=$yearSum;
-                    $_SESSION[__CLASS__]['years'][$name][$year]['Samples']++;
-                }
-                if ($year>=$caseArr['year granted'] || $caseArr['isValidation']){
-                    $_SESSION[__CLASS__]['years'][$name][$year]['Granted']++;
-                }
+            // create case categories
+            $categoryCases=$cacheEntry['Content']['Info']['categoryCases'];
+            if (empty($paramsGeneric['Cases needle alias'])){$casesAlias=$paramsGeneric['Category cases needle'];} else {$casesAlias=$paramsGeneric['Cases needle alias'];}
+            if (empty($paramsGeneric['Category cases needle'])){
+                $categoryCasesHash=substr($categoryCases,0,20);
+            } else if (stripos($categoryCases,$paramsGeneric['Category cases needle'])!==FALSE){
+                $categoryCasesHash='is_'.$casesAlias;
+            } else {
+                $categoryCasesHash='not_'.$casesAlias;
             }
+            // create entry at target
+            $entry=$base['targetSelector'];
+            $entry['Group']=__CLASS__.'|statistic|tmp';
+            $entry['Folder']=$entry['Folder']??$categoryCasesHash;
+            $entry['Name']=$categoryCasesHash.' | '.$categoryCostsHash;
+            $entry['Name'].='||'.str_pad(strval($caseArr['age years']),2,"0",STR_PAD_LEFT).' | '.$caseArr['type'];
+            $entry=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addEntryId($entry,array('Group','Folder','Name'),'0','',FALSE);
+            $entry['Read']='ALL_MEMBER_R';
+            $entry['Write']='ALL_CONTENTADMIN_R';
+            $entry['Content']=array('sumTillGrant'=>array(),'year granted'=>array(),'categoryCosts'=>'');
+            $entry=$this->oc['SourcePot\Datapool\Foundation\Database']->entryByIdCreateIfMissing($entry,TRUE);
+            $entry['Content']['sumTillGrant'][]=$caseArr['sumTillGrant'];
+            $entry['Content']['year granted'][]=$caseArr['year granted'];
+            $entry['Content']['Type']=$caseArr['type'];
+            $entry['Content']['Age']=$caseArr['age years'];
+            $entry['Content']['Category cases']=$categoryCases;
+            $entry['Content']['Category costs']=$categoryCosts;
+            $entry['Content']['Category cases hash']=$categoryCasesHash;
+            $entry['Content']['Category costs hash']=$categoryCostsHash;
+            $entry['Date']=$this->oc['SourcePot\Datapool\Tools\MiscTools']->getDateTime();
+            $entry=$this->oc['SourcePot\Datapool\Foundation\Database']->updateEntry($entry,TRUE);
         }
-        // finalize statistics
-        if ($cacheEntry['isLast']){
-            $entry=$ageEntry=$base['targetEntry'];
-            $addFolder=empty($entry['Folder']);
-            $entry['Read']=$ageEntry['Read']=$this->entryTemplate['Read']['value'];
-            $entry['Write']=$ageEntry['Read']=$this->entryTemplate['Write']['value'];
-            // grant statistic to csv
-            foreach($_SESSION[__CLASS__]['grants'] as $name=>$ages){
-                $ageEntry['Content']=array();
-                $ageEntry['Name']=$name;
-                $ageEntry=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addEntryId($ageEntry,array('Name'),'0','',FALSE);
-                foreach($ages as $age=>$ageArr){
-                    if (empty($ageArr['Samples'])){continue;}
-                    if ($addFolder){                        
-                        $ageEntry['Folder']=$ageArr['Attorney'];
-                    }
-                    $ageEntry['Content']=array('Age'=>$ageArr['Age'],'Avg. costs'=>round($ageArr['Sum costs']/$ageArr['Samples']),'Min costs'=>round($ageArr['Min costs']),'Max costs'=>round($ageArr['Max costs']),'Samples'=>$ageArr['Samples'],'Type'=>$ageArr['Type'],'Attorney'=>$ageArr['Attorney']);
-                    $this->oc['SourcePot\Datapool\Tools\CSVtools']->entry2csv($ageEntry);
-                }
+        return FALSE;
+    }
+
+    private function finalizeStatistics($base):int
+    {
+        $entry=array('rowCount'=>0);
+        $selector=$base['targetSelector'];
+        $selector['Group']=__CLASS__.'|statistic|tmp';
+        foreach($this->oc['SourcePot\Datapool\Foundation\Database']->entryIterator($selector,TRUE,'Read','Name',TRUE) as $entry){
+            $entry=array_merge($entry,$base['targetSelector']);
+            $entry['Content']['Avg. sum grant']=0;
+            $entry['Content']['Max sum grant']=FALSE;
+            $entry['Content']['Min sum grant']=FALSE;
+            $entry['Content']['Avg. years grant']=0;
+            $entry['Content']['Max years grant']=FALSE;
+            $entry['Content']['Min years grant']=FALSE;
+            foreach($entry['Content']['sumTillGrant'] as $index=>$sumTillGrant){
+                $entry['Content']['Avg. sum grant']+=$sumTillGrant;
+                $entry['Content']['Avg. years grant']+=$entry['Content']['year granted'][$index];
+                if ($entry['Content']['Max sum grant']===FALSE || $entry['Content']['Max sum grant']<$sumTillGrant){$entry['Content']['Max sum grant']=$sumTillGrant;}
+                if ($entry['Content']['Min sum grant']===FALSE || $entry['Content']['Min sum grant']>$sumTillGrant){$entry['Content']['Min sum grant']=$sumTillGrant;}
+                if ($entry['Content']['Max years grant']===FALSE || $entry['Content']['Max years grant']<$entry['Content']['year granted'][$index]){$entry['Content']['Max years grant']=$entry['Content']['year granted'][$index];}
+                if ($entry['Content']['Min years grant']===FALSE || $entry['Content']['Min years grant']>$entry['Content']['year granted'][$index]){$entry['Content']['Min years grant']=$entry['Content']['year granted'][$index];}
             }
-            unset($_SESSION[__CLASS__]['grants']);
-            // yearly statistic to csv
-            foreach($_SESSION[__CLASS__]['years'] as $name=>$years){
-                $entry['Content']=array();
-                $entry['Name']=$name;
-                $entry=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addEntryId($entry,array('Name'),'0','',FALSE);
-                foreach($years as $year=>$yearArr){
-                    if (empty($yearArr['Samples']) || empty($yearArr['Cases'])){continue;}
-                    if ($addFolder){                        
-                        $entry['Folder']=$yearArr['Attorney'];
-                    }
-                    $entry['Content']=array('Year'=>$year,'Avg. costs'=>round($yearArr['Sum costs']/$yearArr['Samples']),'Min costs'=>round($yearArr['Min costs']),'Max costs'=>round($yearArr['Max costs']),'Samples'=>$yearArr['Samples'],'Granted [%]'=>round(100*$yearArr['Granted']/$yearArr['Cases']),'Type'=>$yearArr['Type'],'Age'=>$yearArr['Age'],'Attorney'=>$yearArr['Attorney']);
-                    $this->oc['SourcePot\Datapool\Tools\CSVtools']->entry2csv($entry);
-                }
+            $entry['Content']['Cases']=count($entry['Content']['year granted']);
+            if (!empty($entry['Content']['Cases'])){
+                $entry['Content']['Avg. sum grant']=round($entry['Content']['Avg. sum grant']/$entry['Content']['Cases'],2);
+                $entry['Content']['Avg. years grant']=round($entry['Content']['Avg. years grant']/$entry['Content']['Cases']);
             }
-            unset($_SESSION[__CLASS__]['years']);
+            $this->oc['SourcePot\Datapool\Foundation\Database']->updateEntry($entry,TRUE);
         }
-        // delete cache entry
-        //$this->oc['SourcePot\Datapool\Foundation\Database']->deleteEntries($cacheEntry,TRUE);
-        return $result;
+        return $entry['rowCount'];
     }
 
     /**
