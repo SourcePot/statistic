@@ -31,9 +31,9 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         $this->entryTable=mb_strtolower(trim($table,'\\'));
     }
     
-    public function init(array $oc){
-        $this->oc=$oc;
-        $this->entryTemplate=$oc['SourcePot\Datapool\Foundation\Database']->getEntryTemplateCreateTable($this->entryTable,__CLASS__);
+    public function init()
+    {
+        $this->entryTemplate=$this->oc['SourcePot\Datapool\Foundation\Database']->getEntryTemplateCreateTable($this->entryTable,__CLASS__);
     }
     
     public function getEntryTable():string{return $this->entryTable;}
