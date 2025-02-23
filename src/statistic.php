@@ -46,7 +46,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
      *
      * @return string|bool Return the html-string or TRUE callingElement does not exist
      */
-    public function dataProcessor(array $callingElementSelector=array(),string $action='info'){
+    public function dataProcessor(array $callingElementSelector=[],string $action='info'){
         $callingElement=$this->oc['SourcePot\Datapool\Foundation\Database']->entryById($callingElementSelector,TRUE);
         if (empty($callingElement)){
             return TRUE;
@@ -65,7 +65,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         $S=$this->oc['SourcePot\Datapool\Tools\MiscTools']->getSeparator();
         $html='';
         // invoice widget
-        $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Statistic','generic',$callingElement,array('method'=>'getStatisticWidgetHtml','classWithNamespace'=>__CLASS__),array());
+        $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Statistic','generic',$callingElement,array('method'=>'getStatisticWidgetHtml','classWithNamespace'=>__CLASS__),[]);
         return $html;
     }
 
@@ -76,7 +76,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
     public function getStatisticWidgetHtml($arr){
         if (!isset($arr['html'])){$arr['html']='';}
         // command processing
-        $result=array();
+        $result=[];
         $formData=$this->oc['SourcePot\Datapool\Foundation\Element']->formProcessing(__CLASS__,__FUNCTION__);
         if (isset($formData['cmd']['run'])){
             $result=$this->processStatistic($arr['selector'],FALSE);
@@ -89,7 +89,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
         }
         // build html
         $btnArr=array('tag'=>'input','type'=>'submit','callingClass'=>__CLASS__,'callingFunction'=>__FUNCTION__);
-        $matrix=array();
+        $matrix=[];
         $btnArr['value']='Run';
         $btnArr['key']=array('run');
         $matrix['Commands']['Run']=$btnArr;
@@ -110,7 +110,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
     private function getStatisticSettings($callingElement){
         $html='';
         if ($this->oc['SourcePot\Datapool\Foundation\Access']->isContentAdmin()){
-            $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Statistic entries settings','generic',$callingElement,array('method'=>'getStatisticSettingsHtml','classWithNamespace'=>__CLASS__),array());
+            $html.=$this->oc['SourcePot\Datapool\Foundation\Container']->container('Statistic entries settings','generic',$callingElement,array('method'=>'getStatisticSettingsHtml','classWithNamespace'=>__CLASS__),[]);
         }
         return $html;
     }
@@ -143,7 +143,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
             $arr['selector']=$this->oc['SourcePot\Datapool\Foundation\Database']->updateEntry($arr['selector'],TRUE);
         }
         // current params
-        $base=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2settings(__CLASS__,__FUNCTION__,$callingElement,array());
+        $base=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2settings(__CLASS__,__FUNCTION__,$callingElement,[]);
         $params=current($base['processingparamscosts']);
         if (isset($params['Content']['Cost records'])){
             $contentStructure['Case reference']+=$base['entryTemplates'][$params['Content']['Cost records']];
@@ -233,7 +233,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
     
     private function processStatistic($callingElement,$testRun=FALSE):array
     {
-        $base=array('processingparamscosts'=>array(),'processingparamscases'=>array(),'processingparamsgeneric'=>array());
+        $base=array('processingparamscosts'=>[],'processingparamscases'=>[],'processingparamsgeneric'=>[]);
         $base=$this->oc['SourcePot\Datapool\Foundation\DataExplorer']->callingElement2settings(__CLASS__,__FUNCTION__,$callingElement,$base);
         $paramsCosts=current($base['processingparamscosts'])['Content'];
         $paramsCases=current($base['processingparamscases'])['Content'];
@@ -308,7 +308,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
             $family['Info']['costSelector'][$paramsCosts['Case reference']]='%'.$family['Family'].'%';    
             $family['Info']['prioDate']=$flatCaseEntry[$paramsCases['Prio date']];
             $family['Info']['categoryCases']=$flatCaseEntry[$paramsCases['Category cases']];
-            $family['Info']['categoryCosts']=array();
+            $family['Info']['categoryCosts']=[];
             $family['Info']['bins']=$paramsCases['Bins'];
             $family['Info']['isGranted']=FALSE;
             $family['Info']['sum']=0;
@@ -353,7 +353,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
 
     private function addCosts($base,$cacheEntry):array
     {
-        $cacheEntry['Params'][__FUNCTION__]=$cacheEntry['Params'][__FUNCTION__]??array();
+        $cacheEntry['Params'][__FUNCTION__]=$cacheEntry['Params'][__FUNCTION__]??[];
         $paramsCosts=current($base['processingparamscosts'])['Content'];
         $paramsCases=current($base['processingparamscases'])['Content'];
         // add costs
@@ -476,7 +476,7 @@ class statistic implements \SourcePot\Datapool\Interfaces\Processor{
             $entry=$this->oc['SourcePot\Datapool\Tools\MiscTools']->addEntryId($entry,array('Group','Folder','Name'),'0','',FALSE);
             $entry['Read']='ALL_MEMBER_R';
             $entry['Write']='ALL_CONTENTADMIN_R';
-            $entry['Content']=array('sumTillGrant'=>array(),'year granted'=>array(),'categoryCosts'=>'');
+            $entry['Content']=array('sumTillGrant'=>[],'year granted'=>[],'categoryCosts'=>'');
             $entry=$this->oc['SourcePot\Datapool\Foundation\Database']->entryByIdCreateIfMissing($entry,TRUE);
             $entry['Content']['sumTillGrant'][]=$caseArr['sumTillGrant'];
             $entry['Content']['year granted'][]=$caseArr['year granted'];
